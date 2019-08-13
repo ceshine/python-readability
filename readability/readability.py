@@ -87,7 +87,7 @@ class Document:
 
     def __init__(self, input, positive_keywords=None, negative_keywords=None,
                  url=None, min_text_length=25, retry_length=250, xpath=False,
-                 handle_failures='discard'):
+                 parent_level=2, handle_failures='discard'):
         """Generate the document
 
         :param input: string of the html content.
@@ -98,7 +98,8 @@ class Document:
         :param xpath: If set to True, adds x="..." attribute to each HTML node,
         containing xpath path pointing to original document path (allows to
         reconstruct selected summary in original document).
-        :param handle_failures: Parameter passed to `lxml` for handling failure during exception. 
+        :param handle_failures: Parameter passed to `lxml` for handling failure during exception.
+        :param parent_level: How many level should we go up from the paragraph tag
         Support options = ["discard", "ignore", None]
         
         Examples:
@@ -126,6 +127,7 @@ class Document:
         self.retry_length = retry_length
         self.xpath = xpath
         self.handle_failures = handle_failures
+        self.parent_level = parent_level
 
     def _html(self, force=False):
         if force or self.html is None:
@@ -317,11 +319,6 @@ class Document:
         candidates = {}
         ordered = []
         for elem in self.tags(self._html(), "p", "pre", "td"):
-            parent_node = elem.getparent()
-            if parent_node is None:
-                continue
-            grand_parent_node = parent_node.getparent()
-
             inner_text = clean(elem.text_content() or "")
             inner_text_len = len(inner_text)
 
@@ -330,25 +327,20 @@ class Document:
             if inner_text_len < MIN_LEN:
                 continue
 
-            if parent_node not in candidates:
-                candidates[parent_node] = self.score_node(parent_node)
-                ordered.append(parent_node)
-
-            if grand_parent_node is not None and grand_parent_node not in candidates:
-                candidates[grand_parent_node] = self.score_node(
-                    grand_parent_node)
-                ordered.append(grand_parent_node)
-
             content_score = 1
             content_score += len(inner_text.split(','))
             content_score += min((inner_text_len / 100), 3)
-            #if elem not in candidates:
-            #    candidates[elem] = self.score_node(elem)
 
-            #WTF? candidates[elem]['content_score'] += content_score
-            candidates[parent_node]['content_score'] += content_score
-            if grand_parent_node is not None:
-                candidates[grand_parent_node]['content_score'] += content_score / 2.0
+            current_node = elem
+            for i in range(self.parent_level):
+                current_node = current_node.getparent()
+                if current_node is not None:
+                    if current_node not in candidates:
+                        candidates[current_node] = self.score_node(
+                            current_node)
+                        ordered.append(current_node)
+                    candidates[current_node]['content_score'] += content_score / \
+                        (2.0 ** i)
 
         # Scale the final candidates score based on link density. Good content
         # should have a relatively small link density (5% or less) and be
