@@ -377,16 +377,16 @@ class Document:
                     weight += 25
 
                 if self.positive_keywords and self.positive_keywords.search(feature):
-                    weight += 25
+                    weight += 50
 
                 if self.negative_keywords and self.negative_keywords.search(feature):
-                    weight -= 25
+                    weight -= 50
 
         if self.positive_keywords and self.positive_keywords.match('tag-'+e.tag):
-            weight += 25
+            weight += 50
 
         if self.negative_keywords and self.negative_keywords.match('tag-'+e.tag):
-            weight -= 25
+            weight -= 50
 
         return weight
 
